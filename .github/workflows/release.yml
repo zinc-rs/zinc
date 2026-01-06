@@ -1,0 +1,66 @@
+﻿name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust (stable)
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Install LLVM and NASM (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          choco install -y llvm nasm
+          $env:LIBCLANG_PATH = "C:\Program Files\LLVM\bin"
+          echo "LIBCLANG_PATH=$env:LIBCLANG_PATH" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Build (release)
+        run: cargo build --release
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $name = "Zinc_${{ github.ref_name }}_Windows_x64"
+          New-Item -ItemType Directory -Path dist\$name -Force | Out-Null
+          Copy-Item target\release\zn.exe dist\$name\
+          Copy-Item Cargo.toml, Cargo.lock, README.md, LICENSE, COMMERCIAL_TERMS.md -Destination dist\$name\
+          Copy-Item -Recurse crates, examples, assets -Destination dist\$name\
+          Compress-Archive -Path dist\$name\* -DestinationPath dist\$name.zip
+
+      - name: Package (macOS/Linux)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          name="Zinc_${GITHUB_REF_NAME}_${RUNNER_OS}_x64"
+          mkdir -p "dist/$name"
+          cp "target/release/zn" "dist/$name/"
+          cp Cargo.toml Cargo.lock README.md LICENSE COMMERCIAL_TERMS.md "dist/$name/"
+          cp -R crates examples assets "dist/$name/"
+          cd dist
+          zip -r "$name.zip" "$name"
+
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/*.zip

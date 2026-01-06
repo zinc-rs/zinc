@@ -1,7 +1,0 @@
-fn main() {
-    print("Testing X (Robots.txt)...");
-    let url = "https://twitter.com/robots.txt";
-    let html = spider.get(url, "chrome");
-    print("Length:");
-    print(html.len());
-}

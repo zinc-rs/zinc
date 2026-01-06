@@ -1,6 +1,0 @@
-fn main() {
-    # Public API for fingerprint testing, completely legal
-    let url = "https://tls.browserleaks.com/json";
-    let json = spider.get(url, "chrome");
-    print(json);
-}

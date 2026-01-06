@@ -2,3 +2,5 @@
 **/*.rs.bk
 *.py
 .DS_Store
+release_package/
+Zinc_v1.0_Windows_x64.zip

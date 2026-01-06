@@ -1,7 +1,0 @@
-fn main() {
-    # This is a specific product page
-    let url = "https://www.nike.com/t/air-max-270-mens-shoes-KkLcGR/AH8050-002";
-    let html = spider.get(url, "chrome");
-    print("Nike Status: Online. Length: ");
-    print(html.len());
-}

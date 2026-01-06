@@ -1,7 +1,0 @@
-fn main() {
-    print("Testing connectivity to Shein (Public Endpoint)...");
-    let url = "https://us.shein.com/";
-    let html = spider.get(url, "chrome");
-    print("Shein Status: Online. Length: ");
-    print(html.len());
-}

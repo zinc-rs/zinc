@@ -1,0 +1,19 @@
+COMMENT = _{ "#" ~ (!NEWLINE ~ ANY)* ~ NEWLINE? }
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
+NEWLINE = _{ "\n" }
+program = { SOI ~ statement* ~ EOI }
+statement = { fn_def | if_stmt | loop_stmt | break_stmt | let_stmt | expr_stmt }
+if_stmt = { "if" ~ expr ~ block ~ ("else" ~ block)? }
+loop_stmt = { "loop" ~ block }
+break_stmt = { "break" ~ ";"? }
+fn_def = { "fn" ~ identifier ~ "(" ~ param_list? ~ ")" ~ block }
+param_list = { identifier ~ ("," ~ identifier)* }
+block = { "{" ~ statement* ~ "}" }
+let_stmt = { "let" ~ identifier ~ "=" ~ expr ~ ";"? }
+expr_stmt = { expr ~ ";"? }
+expr = { call | member_call | string | identifier }
+call = { identifier ~ "(" ~ arg_list? ~ ")" }
+member_call = { identifier ~ "." ~ identifier ~ "(" ~ arg_list? ~ ")" }
+arg_list = { expr ~ ("," ~ expr)* }
+string = @{ "\"" ~ ( "\\\"" | (!"\"" ~ ANY) )* ~ "\"" }
+identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }

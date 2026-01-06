@@ -1,0 +1,8 @@
+fn main() {
+    let url = "https://www.okx.com/";
+    print("Checking exchange availability...");
+    
+    let html = spider.get(url, "chrome");
+    print("Response received. Length: ");
+    print(html.len());
+}

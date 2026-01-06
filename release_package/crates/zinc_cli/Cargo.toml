@@ -1,0 +1,15 @@
+﻿[package]
+license = "AGPL-3.0-only"
+name = "zinc_cli"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "zn"
+path = "src/main.rs"
+
+[dependencies]
+zinc_core = { path = "../zinc_core" }
+zinc_std = { path = "../zinc_std" }
+
+

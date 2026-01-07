@@ -3,12 +3,12 @@
 ## 1. Free Tier (Community License)
 Zinc is free to use for:
 *   Individuals & Open Source projects.
-*   **Companies:** Annual gross revenue under **USD $1,000,000**.
+*   **Companies:** **Annual** gross revenue under **USD $1,000,000 (or equivalent in any other currency)**.
 *   Usage: Internal tools, commercial products, SaaS.
 *   Condition: You are NOT required to open-source your code if you fall under this tier.
 
 ## 2. Startup License
-For companies with annual gross revenue between **USD $1,000,000** and **USD $5,000,000**.
+For companies with **annual** gross revenue between **USD $1,000,000 (or equivalent in any other currency)** and **USD $5,000,000**.
 *   **Price:** $2,000 / year / company.
 
 ## 3. Enterprise License

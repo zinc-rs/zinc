@@ -56,7 +56,7 @@ fn main() {
 ##  License & Commercial Use
 **Zinc is Dual-Licensed:**
 
-1.  **Community Edition (AGPL v3):** Free for Open Source, Individuals, and Startups (<$1M Revenue).
+1.  **Community Edition (AGPL v3):** Free for Open Source, Individuals, and Startups (Annual Revenue < USD $1M or equivalent).
 2.  **Commercial Edition:** Paid license for larger companies & public corps. Exempts you from AGPL obligations.
 
 See [COMMERCIAL_TERMS.md](COMMERCIAL_TERMS.md) for full details.

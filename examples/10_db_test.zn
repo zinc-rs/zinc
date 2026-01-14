@@ -1,0 +1,15 @@
+fn main() {
+    let url = "sqlite:test.db";
+    # We need to create the file if not exists. SQLx does this if we set `?mode=rwc`.
+    let url_create = "sqlite:test.db?mode=rwc";
+
+    print("Creating table...");
+    db.query(url_create, "CREATE TABLE IF NOT EXISTS logs (msg TEXT);");
+
+    print("Inserting log...");
+    db.query(url_create, "INSERT INTO logs VALUES ('Hello from Zinc');");
+
+    print("Reading logs...");
+    let data = db.query(url_create, "SELECT * FROM logs;");
+    print(data);
+}

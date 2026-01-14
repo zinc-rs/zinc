@@ -21,12 +21,22 @@ fn main() {
         eprintln!("Thank you!");
     }
 
-    let mut args = env::args();
-    let _exe = args.next();
-    let path = match args.next() {
+    let mut args = env::args().skip(1);
+    let mut json_mode = false;
+    let mut path: Option<String> = None;
+    for arg in args.by_ref() {
+        if arg == "--json" {
+            json_mode = true;
+            continue;
+        }
+        if path.is_none() {
+            path = Some(arg);
+        }
+    }
+    let path = match path {
         Some(p) => p,
         None => {
-            eprintln!("Usage: zn <path>.zn");
+            eprintln!("Usage: zn <path>.zn [--json]");
             std::process::exit(1);
         }
     };
@@ -48,8 +58,20 @@ fn main() {
         }
     };
 
-    let transpiled = zinc_core::transpile(&content);
-    let wrapped = format!("fn main() {{\n{}\n}}", transpiled);
+    let transpiled = if json_mode {
+        match zinc_core::transpile_with_error(&content) {
+            Ok(out) => out,
+            Err(err) => {
+                let json = serde_json::to_string(&err)
+                    .unwrap_or_else(|_| zinc_core::format_error_json("Parse failed"));
+                println!("{}", json);
+                std::process::exit(1);
+            }
+        }
+    } else {
+        zinc_core::transpile(&content)
+    };
+    let wrapped = format!("fn main() {{\n{}\n zinc_std::check_leaks();\n}}", transpiled);
 
     let temp_path = "crates/zinc_std/src/bin/temp_runner.rs";
     if let Err(err) = fs::create_dir_all("crates/zinc_std/src/bin") {
@@ -72,7 +94,9 @@ fn main() {
         .status();
 
     match status {
-        Ok(s) if s.success() => {}
+        Ok(s) if s.success() => {
+            zinc_std::check_leaks();
+        }
         Ok(s) => {
             eprintln!("temp_runner exited with status: {}", s);
             std::process::exit(1);

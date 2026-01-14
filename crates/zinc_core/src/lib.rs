@@ -2,12 +2,22 @@
 // Library choice: pest provides PEG parsing that maps cleanly to a compact language grammar with clear precedence.
 
 use pest::iterators::Pair;
+use pest::error::LineColLocation;
 use pest::Parser;
 use pest_derive::Parser;
+use serde::Serialize;
 
 #[derive(Parser)]
 #[grammar = "grammar.pest"]
 pub struct ZincParser;
+
+#[derive(Serialize)]
+pub struct ZincError {
+    pub line: usize,
+    pub column: usize,
+    pub message: String,
+    pub suggestion: String,
+}
 
 #[cfg(test)]
 mod tests {
@@ -36,27 +46,30 @@ mod tests {
 }
 
 pub fn transpile(source: &str) -> String {
+    match transpile_with_error(source) {
+        Ok(output) => output,
+        Err(err) => {
+            eprintln!("Parse failed: {}", err.message);
+            String::new()
+        }
+    }
+}
+
+pub fn transpile_with_error(source: &str) -> Result<String, ZincError> {
     let mut output = String::new();
     let mut src = source;
     if src.starts_with('\u{feff}') {
         src = &src[3..];
     }
 
-    let mut pairs = match ZincParser::parse(Rule::program, src) {
-        Ok(pairs) => pairs,
-        Err(err) => {
-            eprintln!("Parse failed: {}", err);
-            return output;
-        }
-    };
+    let mut pairs = ZincParser::parse(Rule::program, src).map_err(zinc_error_from_pest)?;
 
-    let program = match pairs.next() {
-        Some(pair) => pair,
-        None => {
-            eprintln!("Warning: No statements found");
-            return output;
-        }
-    };
+    let program = pairs.next().ok_or_else(|| ZincError {
+        line: 0,
+        column: 0,
+        message: "No statements found".to_string(),
+        suggestion: "Add at least one statement.".to_string(),
+    })?;
 
     let mut saw_statement = false;
     for pair in program.into_inner() {
@@ -68,10 +81,38 @@ pub fn transpile(source: &str) -> String {
     }
 
     if !saw_statement {
-        eprintln!("Warning: No statements found");
+        return Err(ZincError {
+            line: 0,
+            column: 0,
+            message: "No statements found".to_string(),
+            suggestion: "Add at least one statement.".to_string(),
+        });
     }
 
-    output
+    Ok(output)
+}
+
+pub fn format_error_json(err: &str) -> String {
+    let data = ZincError {
+        line: 0,
+        column: 0,
+        message: err.to_string(),
+        suggestion: "Check syntax near the reported location.".to_string(),
+    };
+    serde_json::to_string(&data).unwrap_or_else(|_| "{\"message\":\"error\"}".to_string())
+}
+
+fn zinc_error_from_pest(err: pest::error::Error<Rule>) -> ZincError {
+    let (line, column) = match err.line_col {
+        LineColLocation::Pos((l, c)) => (l, c),
+        LineColLocation::Span((l, c), _) => (l, c),
+    };
+    ZincError {
+        line,
+        column,
+        message: err.to_string(),
+        suggestion: "Check syntax near the reported location.".to_string(),
+    }
 }
 
 fn transpile_statement(pair: Pair<Rule>) -> String {
@@ -196,10 +237,10 @@ fn transpile_call(pair: Pair<Rule>) -> String {
     let args = inner.next().map(transpile_arg_list).unwrap_or_default();
     let args_joined = args.join(", ");
 
-    if name == "print" {
-        format!("println!(\"{}\", {})", "{}", args_joined)
-    } else {
-        format!("{}({})", name, args_joined)
+    match name.as_str() {
+        "print" => format!("println!(\"{{:?}}\", {})", args_joined),
+        "leak" => "zinc_std::leak()".to_string(),
+        _ => format!("{}({})", name, args_joined),
     }
 }
 
@@ -216,6 +257,12 @@ fn transpile_member_call(pair: Pair<Rule>) -> String {
     let args = inner.next().map(transpile_arg_list).unwrap_or_default();
     let args_joined = args.join(", ");
 
+    if obj == "db" && method == "query" {
+        if args.len() == 2 {
+            return format!("zinc_std::db::query({}, {})", args[0], args[1]);
+        }
+        return String::new();
+    }
     if obj == "spider" && method == "get" {
         if args.len() == 1 {
             format!("zinc_std::spider::get({}, None)", args[0])

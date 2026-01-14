@@ -1,3 +1,0 @@
-fn main() {
-    pint("Hello"); # 拼写错误，应该是 print
-}

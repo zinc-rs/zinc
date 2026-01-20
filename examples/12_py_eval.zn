@@ -1,0 +1,9 @@
+fn main() {
+    print("Calling Python from Zinc...");
+    
+    # Correct Python eval usage: __import__ is an expression
+    let os = py.eval("__import__('platform').system()");
+    
+    print("Python returned:");
+    print(os);
+}

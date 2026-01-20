@@ -1,0 +1,29 @@
+﻿{
+  "scopeName": "source.zinc",
+  "name": "Zinc",
+  "patterns": [
+    {
+      "name": "comment.line.number-sign.zinc",
+      "match": "#.*$"
+    },
+    {
+      "name": "string.quoted.double.zinc",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.zinc",
+          "match": "\\\\."
+        }
+      ]
+    },
+    {
+      "name": "keyword.control.zinc",
+      "match": "\\b(fn|let|if|else|loop|break|return)\\b"
+    },
+    {
+      "name": "support.function.zinc",
+      "match": "\\b(print|spider\\.get|db\\.query)\\b"
+    }
+  ]
+}

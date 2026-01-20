@@ -21,22 +21,27 @@ fn main() {
         eprintln!("Thank you!");
     }
 
-    let mut args = env::args().skip(1);
-    let mut json_mode = false;
-    let mut path: Option<String> = None;
-    for arg in args.by_ref() {
-        if arg == "--json" {
-            json_mode = true;
-            continue;
+    let mut args: Vec<String> = env::args().skip(1).collect();
+    let json_mode = args.iter().any(|arg| arg == "--json");
+    args.retain(|arg| arg != "--json");
+
+    let (command, path) = match args.get(0).map(|s| s.as_str()) {
+        Some("check") | Some("eject") | Some("run") => {
+            if args.len() != 2 {
+                print_usage();
+                std::process::exit(1);
+            }
+            (args[0].clone(), args[1].clone())
         }
-        if path.is_none() {
-            path = Some(arg);
+        Some(_) => {
+            if args.len() != 1 {
+                print_usage();
+                std::process::exit(1);
+            }
+            ("run".to_string(), args[0].clone())
         }
-    }
-    let path = match path {
-        Some(p) => p,
         None => {
-            eprintln!("Usage: zn <path>.zn [--json]");
+            print_usage();
             std::process::exit(1);
         }
     };
@@ -58,52 +63,94 @@ fn main() {
         }
     };
 
-    let transpiled = if json_mode {
-        match zinc_core::transpile_with_error(&content) {
-            Ok(out) => out,
-            Err(err) => {
-                let json = serde_json::to_string(&err)
-                    .unwrap_or_else(|_| zinc_core::format_error_json("Parse failed"));
-                println!("{}", json);
-                std::process::exit(1);
+    match command.as_str() {
+        "check" => {
+            match zinc_core::transpile_with_error(&content) {
+                Ok(_) => println!("OK"),
+                Err(err) => {
+                    if json_mode {
+                        let json = serde_json::to_string(&err)
+                            .unwrap_or_else(|_| zinc_core::format_error_json("Parse failed"));
+                        println!("{}", json);
+                    } else {
+                        eprintln!(
+                            "Parse failed: {} (line {}, column {})",
+                            err.message, err.line, err.column
+                        );
+                    }
+                    std::process::exit(1);
+                }
             }
         }
-    } else {
-        zinc_core::transpile(&content)
-    };
-    let wrapped = format!("fn main() {{\n{}\n zinc_std::check_leaks();\n}}", transpiled);
-
-    let temp_path = "crates/zinc_std/src/bin/temp_runner.rs";
-    if let Err(err) = fs::create_dir_all("crates/zinc_std/src/bin") {
-        eprintln!("Failed to create bin dir: {}", err);
-        std::process::exit(1);
-    }
-    if let Err(err) = fs::write(temp_path, wrapped) {
-        eprintln!("Failed to write {}: {}", temp_path, err);
-        std::process::exit(1);
-    }
-
-    let status = Command::new("cargo")
-        .args([
-            "run",
-            "--manifest-path",
-            "crates/zinc_std/Cargo.toml",
-            "--bin",
-            "temp_runner",
-        ])
-        .status();
-
-    match status {
-        Ok(s) if s.success() => {
-            zinc_std::check_leaks();
+        "eject" => {
+            let transpiled = match zinc_core::transpile_with_error(&content) {
+                Ok(out) => out,
+                Err(err) => {
+                    eprintln!(
+                        "Parse failed: {} (line {}, column {})",
+                        err.message, err.line, err.column
+                    );
+                    std::process::exit(1);
+                }
+            };
+            let wrapped = format!("fn main() {{\n{}\n zinc_std::check_leaks();\n}}", transpiled);
+            let stem = Path::new(&path)
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("output");
+            let out_path = Path::new(stem).with_extension("rs");
+            if let Err(err) = fs::write(&out_path, wrapped) {
+                eprintln!("Failed to write {}: {}", out_path.display(), err);
+                std::process::exit(1);
+            }
+            println!("Ejected to .rs");
         }
-        Ok(s) => {
-            eprintln!("temp_runner exited with status: {}", s);
-            std::process::exit(1);
-        }
-        Err(err) => {
-            eprintln!("Failed to run cargo: {}", err);
-            std::process::exit(1);
+        _ => {
+            let transpiled = match zinc_core::transpile_with_error(&content) {
+                Ok(out) => out,
+                Err(err) => {
+                    eprintln!(
+                        "Parse failed: {} (line {}, column {})",
+                        err.message, err.line, err.column
+                    );
+                    std::process::exit(1);
+                }
+            };
+            let wrapped = format!("fn main() {{\n{}\n zinc_std::check_leaks();\n}}", transpiled);
+
+            let temp_path = "crates/zinc_std/src/bin/temp_runner.rs";
+            if let Err(err) = fs::create_dir_all("crates/zinc_std/src/bin") {
+                eprintln!("Failed to create bin dir: {}", err);
+                std::process::exit(1);
+            }
+            if let Err(err) = fs::write(temp_path, wrapped) {
+                eprintln!("Failed to write {}: {}", temp_path, err);
+                std::process::exit(1);
+            }
+
+            let status = Command::new("cargo")
+                .args([
+                    "run",
+                    "--manifest-path",
+                    "crates/zinc_std/Cargo.toml",
+                    "--bin",
+                    "temp_runner",
+                ])
+                .status();
+
+            match status {
+                Ok(s) if s.success() => {
+                    zinc_std::check_leaks();
+                }
+                Ok(s) => {
+                    eprintln!("temp_runner exited with status: {}", s);
+                    std::process::exit(1);
+                }
+                Err(err) => {
+                    eprintln!("Failed to run cargo: {}", err);
+                    std::process::exit(1);
+                }
+            }
         }
     }
 }
@@ -148,4 +195,11 @@ fn prompt_acceptance() -> bool {
         return false;
     }
     matches!(input.trim(), "y" | "Y")
+}
+
+fn print_usage() {
+    eprintln!("Usage:");
+    eprintln!("  zn run <path>.zn");
+    eprintln!("  zn check <path>.zn [--json]");
+    eprintln!("  zn eject <path>.zn");
 }

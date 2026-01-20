@@ -215,66 +215,51 @@ fn transpile_break_stmt(_pair: Pair<Rule>) -> String {
 
 fn transpile_expr(pair: Pair<Rule>) -> String {
     match pair.as_rule() {
-        Rule::expr => pair
-            .into_inner()
-            .next()
-            .map(transpile_expr)
-            .unwrap_or_default(),
+        Rule::expr => {
+            let mut inner = pair.into_inner();
+            let mut current = match inner.next() {
+                Some(p) => transpile_expr(p),
+                None => return String::new(),
+            };
+            while let Some(op) = inner.next() {
+                let rhs_pair = match inner.next() {
+                    Some(p) => p,
+                    None => break,
+                };
+                match op.as_str() {
+                    "|>" => {
+                        current = transpile_pipeline(current, rhs_pair);
+                    }
+                    "+" => {
+                        let rhs = transpile_expr(rhs_pair);
+                        current = format!("format!(\"{{}}{{}}\", {}, {})", current, rhs);
+                    }
+                    "==" | "!=" | ">" | "<" | ">=" | "<=" => {
+                        let rhs = transpile_expr(rhs_pair);
+                        current = format!("({} {} {})", current, op.as_str(), rhs);
+                    }
+                    _ => {}
+                }
+            }
+            current
+        }
+        Rule::term => transpile_term(pair),
         Rule::call => transpile_call(pair),
-        Rule::member_call => transpile_member_call(pair),
-        Rule::string => pair.as_str().to_string(),
+        Rule::array => transpile_array(pair),
+        Rule::string => {
+            transpile_string(pair.as_str())
+        }
+        Rule::number => pair.as_str().to_string(),
         Rule::identifier => pair.as_str().to_string(),
         _ => String::new(),
     }
 }
 
 fn transpile_call(pair: Pair<Rule>) -> String {
-    let mut inner = pair.into_inner();
-    let name = inner
-        .next()
-        .map(|p| p.as_str().to_string())
-        .unwrap_or_default();
-    let args = inner.next().map(transpile_arg_list).unwrap_or_default();
-    let args_joined = args.join(", ");
-
-    match name.as_str() {
-        "print" => format!("println!(\"{{:?}}\", {})", args_joined),
-        "leak" => "zinc_std::leak()".to_string(),
-        _ => format!("{}({})", name, args_joined),
-    }
+    let (name, args) = parse_call(pair);
+    transpile_call_with_args(&name, &args)
 }
 
-fn transpile_member_call(pair: Pair<Rule>) -> String {
-    let mut inner = pair.into_inner();
-    let obj = inner
-        .next()
-        .map(|p| p.as_str().to_string())
-        .unwrap_or_default();
-    let method = inner
-        .next()
-        .map(|p| p.as_str().to_string())
-        .unwrap_or_default();
-    let args = inner.next().map(transpile_arg_list).unwrap_or_default();
-    let args_joined = args.join(", ");
-
-    if obj == "db" && method == "query" {
-        if args.len() == 2 {
-            return format!("zinc_std::db::query({}, {})", args[0], args[1]);
-        }
-        return String::new();
-    }
-    if obj == "spider" && method == "get" {
-        if args.len() == 1 {
-            format!("zinc_std::spider::get({}, None)", args[0])
-        } else if args.len() >= 2 {
-            format!("zinc_std::spider::get({}, Some({}))", args[0], args[1])
-        } else {
-            String::new()
-        }
-    } else {
-        format!("{}.{}({})", obj, method, args_joined)
-    }
-}
 
 fn transpile_arg_list(pair: Pair<Rule>) -> Vec<String> {
     let mut out = Vec::new();
@@ -295,6 +280,282 @@ fn transpile_block(pair: Pair<Rule>) -> String {
         }
     }
     out
+}
+
+
+fn transpile_array(pair: Pair<Rule>) -> String {
+    let mut items = Vec::new();
+    let mut inner = pair.into_inner();
+    if let Some(elements) = inner.next() {
+        for expr in elements.into_inner() {
+            if expr.as_rule() == Rule::expr {
+                let value = transpile_expr(expr);
+                if !value.is_empty() {
+                    items.push(value);
+                }
+            }
+        }
+    }
+    format!("vec![{}]", items.join(", "))
+}
+
+fn transpile_pipeline(lhs: String, rhs_pair: Pair<Rule>) -> String {
+    if rhs_pair.as_rule() != Rule::term {
+        return format!("{}({})", transpile_expr(rhs_pair), lhs);
+    }
+
+    let mut inner = rhs_pair.into_inner();
+    let mut atom = match inner.next() {
+        Some(p) => p,
+        None => return String::new(),
+    };
+
+    if atom.as_rule() == Rule::atom {
+        if let Some(inner_atom) = atom.into_inner().next() {
+            atom = inner_atom;
+        } else {
+            return String::new();
+        }
+    }
+
+    match atom.as_rule() {
+        Rule::call => {
+            let (name, mut args) = parse_call(atom);
+            args.insert(0, lhs);
+            let mut out = transpile_call_with_args(&name, &args);
+            for suffix in inner {
+                out = transpile_suffix(out, suffix);
+            }
+            out
+        }
+        Rule::identifier => {
+            let ident = atom.as_str().to_string();
+            if let Some(first_suffix) = inner.next() {
+                let first_suffix = unwrap_suffix(first_suffix);
+                if first_suffix.as_rule() == Rule::member_suffix {
+                    let mut suffix_inner = first_suffix.into_inner();
+                    let method = suffix_inner
+                        .next()
+                        .map(|p| p.as_str().to_string())
+                        .unwrap_or_default();
+                    let mut args = suffix_inner
+                        .next()
+                        .map(transpile_arg_list)
+                        .unwrap_or_default();
+                    args.insert(0, lhs);
+                    let mut out = transpile_member_call_with_args(&ident, &method, &args);
+                    for suffix in inner {
+                        out = transpile_suffix(out, suffix);
+                    }
+                    return out;
+                }
+                let mut out = ident;
+                out = transpile_suffix(out, first_suffix);
+                for suffix in inner {
+                    out = transpile_suffix(out, suffix);
+                }
+                return format!("{}({})", out, lhs);
+            }
+            return transpile_call_with_args(&ident, &[lhs]);
+        }
+        _ => {
+            let mut out = transpile_atom(atom);
+            for suffix in inner {
+                out = transpile_suffix(out, suffix);
+            }
+            format!("{}({})", out, lhs)
+        }
+    }
+}
+
+fn parse_call(pair: Pair<Rule>) -> (String, Vec<String>) {
+    let mut inner = pair.into_inner();
+    let name = inner
+        .next()
+        .map(|p| p.as_str().to_string())
+        .unwrap_or_default();
+    let args = inner.next().map(transpile_arg_list).unwrap_or_default();
+    (name, args)
+}
+
+
+fn transpile_call_with_args(name: &str, args: &[String]) -> String {
+    let args_joined = args.join(", ");
+    match name {
+        "print" => format!("println!(\"{{:?}}\", {})", args_joined),
+        "leak" => "zinc_std::leak()".to_string(),
+        _ => format!("{}({})", name, args_joined),
+    }
+}
+
+fn transpile_member_call_with_args(obj: &str, method: &str, args: &[String]) -> String {
+    let args_joined = args.join(", ");
+    if obj == "db" && method == "query" {
+        if args.len() == 2 {
+            return format!("zinc_std::db::query({}, {})", args[0], args[1]);
+        }
+        return String::new();
+    }
+    if obj == "fs" && method == "read" {
+        if args.len() == 1 {
+            return format!("zinc_std::fs::read({})", args[0]);
+        }
+        return String::new();
+    }
+    if obj == "fs" && method == "write" {
+        if args.len() == 2 {
+            return format!("zinc_std::fs::write({}, {})", args[0], args[1]);
+        }
+        return String::new();
+    }
+    if obj == "html" && method == "select" {
+        if args.len() == 2 {
+            return format!("zinc_std::html::select_text({}, {})", args[0], args[1]);
+        }
+        return String::new();
+    }
+    if obj == "json" && method == "parse" {
+        if args.len() == 1 {
+            return format!("zinc_std::json::parse({})", args[0]);
+        }
+        return String::new();
+    }
+    if obj == "json" && method == "get" {
+        if args.len() == 2 {
+            return format!("zinc_std::json::get(&{}, {})", args[0], args[1]);
+        }
+        return String::new();
+    }
+    if obj == "json" && method == "at" {
+        if args.len() == 2 {
+            return format!("zinc_std::json::at(&{}, {})", args[0], args[1]);
+        }
+        return String::new();
+    }
+    if obj == "json" && method == "to_string" {
+        if args.len() == 1 {
+            return format!("zinc_std::json::to_string({})", args[0]);
+        }
+        return String::new();
+    }
+    if obj == "spider" && method == "get_proxy" {
+        if args.len() == 3 {
+            return format!(
+                "zinc_std::spider::get_with_proxy({}, {}, {})",
+                args[0], args[1], args[2]
+            );
+        }
+        return String::new();
+    }
+    if obj == "py" && method == "eval" {
+        return format!("zinc_std::python::eval({})", args_joined);
+    }
+    if obj == "spider" && method == "get" {
+        if args.len() == 1 {
+            format!("zinc_std::spider::get({}, None)", args[0])
+        } else if args.len() >= 2 {
+            format!("zinc_std::spider::get({}, Some({}))", args[0], args[1])
+        } else {
+            String::new()
+        }
+    } else {
+        format!("{}.{}({})", obj, method, args_joined)
+    }
+}
+
+fn transpile_term(pair: Pair<Rule>) -> String {
+    let mut inner = pair.into_inner();
+    let atom = match inner.next() {
+        Some(p) => p,
+        None => return String::new(),
+    };
+    let mut current = transpile_atom(atom);
+    for suffix in inner {
+        current = transpile_suffix(current, suffix);
+    }
+    current
+}
+
+fn transpile_atom(pair: Pair<Rule>) -> String {
+    match pair.as_rule() {
+        Rule::atom => {
+            let mut inner = pair.into_inner();
+            if let Some(p) = inner.next() {
+                transpile_atom(p)
+            } else {
+                String::new()
+            }
+        }
+        Rule::array => transpile_array(pair),
+        Rule::call => transpile_call(pair),
+        Rule::string => {
+            transpile_string(pair.as_str())
+        }
+        Rule::number => pair.as_str().to_string(),
+        Rule::identifier => pair.as_str().to_string(),
+        Rule::expr => transpile_expr(pair),
+        Rule::term => transpile_term(pair),
+        _ => String::new(),
+    }
+}
+
+fn transpile_suffix(current: String, suffix: Pair<Rule>) -> String {
+    let suffix = unwrap_suffix(suffix);
+    match suffix.as_rule() {
+        Rule::indexing_suffix => {
+            let mut inner = suffix.into_inner();
+            let index_expr = inner.next().map(transpile_expr).unwrap_or_default();
+            if current.is_empty() || index_expr.is_empty() {
+                String::new()
+            } else {
+                format!("{}[{} as usize]", current, index_expr)
+            }
+        }
+        Rule::member_suffix => {
+            let mut inner = suffix.into_inner();
+            let method = inner
+                .next()
+                .map(|p| p.as_str().to_string())
+                .unwrap_or_default();
+            let args = inner.next().map(transpile_arg_list).unwrap_or_default();
+            if method.is_empty() {
+                return String::new();
+            }
+            if is_simple_identifier(&current) {
+                return transpile_member_call_with_args(&current, &method, &args);
+            }
+            format!("{}.{}({})", current, method, args.join(", "))
+        }
+        _ => current,
+    }
+}
+
+fn is_simple_identifier(value: &str) -> bool {
+    let mut chars = value.chars();
+    let first = match chars.next() {
+        Some(c) => c,
+        None => return false,
+    };
+    if !(first.is_ascii_alphabetic() || first == '_') {
+        return false;
+    }
+    chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+
+fn unwrap_suffix(pair: Pair<Rule>) -> Pair<Rule> {
+    if pair.as_rule() == Rule::suffix {
+        return pair.into_inner().next().unwrap();
+    }
+    pair
+}
+
+fn transpile_string(raw: &str) -> String {
+    if raw.len() < 2 {
+        return String::new();
+    }
+    let inner = &raw[1..raw.len() - 1];
+    let unescaped = inner.replace("\\\"", "\"").replace("\\\\", "\\");
+    format!("r#\"{}\"#", unescaped)
 }
 
 

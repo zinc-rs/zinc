@@ -1,0 +1,19 @@
+fn main() {
+    print("1. Testing File I/O...");
+    fs.write("test_file.txt", "Hello Zinc FS!");
+    let content = fs.read("test_file.txt");
+    print("Read back:");
+    print(content);
+
+    print("2. Testing HTML Parsing...");
+    let html_src = "<html><body><h1>Title</h1><div class='price'>$99</div></body></html>";
+    # Note: We need to see if the transpiler handles the selector string correctly
+    let titles = html.select(html_src, "h1");
+    print("Titles found:");
+    print(titles);
+
+    print("3. Testing Proxy (Mock)...");
+    # We won't use a real proxy IP to avoid timeouts, just pass empty string or None to test the function call signature
+    # Actually, let's just test compilation. We can't really test a proxy without a proxy.
+    # Let's skip proxy execution for now, just ensure it compiles.
+}

@@ -3,6 +3,7 @@ members = [
   "crates/zinc_core",
   "crates/zinc_std",
   "crates/zinc_cli",
+  "crates/zinc_lsp",
 ]
 resolver = "2"
 

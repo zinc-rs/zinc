@@ -1,0 +1,10 @@
+﻿[package]
+name = "zinc_lsp"
+version = "1.0.3"
+edition = "2021"
+
+[dependencies]
+tower-lsp = "0.20"
+tokio = { version = "1", features = ["full"] }
+serde_json = "1.0"
+zinc_core = { path = "../zinc_core", version = "1.0.3" }

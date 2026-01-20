@@ -1,0 +1,18 @@
+fn main() {
+    print("Parsing JSON...");
+    # A mock JSON string (like from an API)
+    # Note: We need to escape quotes carefully in Zinc strings
+    let raw = "{\"name\": \"Zinc\", \"versions\": [1, 2]}";
+    
+    let obj = json.parse(raw);
+    print("Object parsed.");
+    
+    let name = json.get(obj, "name");
+    print("Name:");
+    print(name);
+    
+    let versions = json.get(obj, "versions");
+    let v1 = json.at(versions, 0);
+    print("First Version:");
+    print(v1);
+}

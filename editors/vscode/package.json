@@ -1,0 +1,43 @@
+﻿{
+  "name": "zinc-lang",
+  "displayName": "Zinc Language",
+  "publisher": "ZincRS",
+  "version": "1.0.0",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "activationEvents": [
+    "onLanguage:zinc"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "zinc",
+        "aliases": ["Zinc", "zinc"],
+        "extensions": [".zn"]
+      }
+    ],
+    "grammars": [
+      {
+        "language": "zinc",
+        "scopeName": "source.zinc",
+        "path": "./syntaxes/zinc.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Zinc",
+      "properties": {
+        "zinc.serverPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to zinc_lsp executable (leave empty to use PATH)"
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.0"
+  }
+}

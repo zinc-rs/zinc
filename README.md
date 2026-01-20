@@ -60,3 +60,16 @@ fn main() {
 2.  **Commercial Edition:** Paid license for larger companies & public corps. Exempts you from AGPL obligations.
 
 See [COMMERCIAL_TERMS.md](COMMERCIAL_TERMS.md) for full details.
+## 🧹 Data Processing (New in v1.1)
+```python
+// 1. Parse HTML
+let doc = html.select(html_content, ".price");
+print(doc[0]);
+
+// 2. Parse JSON
+let data = json.parse("{\"price\": 100}");
+print(json.get(data, "price"));
+
+// 3. Save to File
+fs.write("data.txt", "Scraped!");
+```

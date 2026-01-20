@@ -14,3 +14,6 @@ sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "sqlit
 anyhow = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+scraper = "0.18.1"
+pyo3 = { version = "0.23", features = ["auto-initialize"] }
+serde-pyobject = "0.5"

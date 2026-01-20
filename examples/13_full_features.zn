@@ -1,0 +1,11 @@
+fn main() {
+    print("1. Array Test:");
+    let urls = ["https://okx.com", "https://nike.com"];
+    print(urls[0]);
+
+    print("2. Pipeline Test:");
+    "Hello Pipeline" |> print;
+    
+    print("3. Pipeline + Array:");
+    urls[1] |> print;
+}

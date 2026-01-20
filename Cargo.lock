@@ -3177,7 +3177,7 @@ dependencies = [
 
 [[package]]
 name = "zinc_cli"
-version = "1.0.3"
+version = "1.1.0"
 dependencies = [
  "serde_json",
  "zinc_core",
@@ -3186,7 +3186,7 @@ dependencies = [
 
 [[package]]
 name = "zinc_core"
-version = "1.0.3"
+version = "1.1.0"
 dependencies = [
  "pest",
  "pest_derive",
@@ -3196,7 +3196,7 @@ dependencies = [
 
 [[package]]
 name = "zinc_lsp"
-version = "1.0.3"
+version = "1.1.0"
 dependencies = [
  "serde_json",
  "tokio",
@@ -3206,7 +3206,7 @@ dependencies = [
 
 [[package]]
 name = "zinc_std"
-version = "1.0.3"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "pyo3",

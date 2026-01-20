@@ -1,6 +1,6 @@
-﻿[package]
+[package]
 name = "zinc_std"
-version = "1.0.3"
+version = "1.1.0"
 edition = "2021"
 
 [lib]
@@ -17,3 +17,4 @@ serde_json = "1.0"
 scraper = "0.18.1"
 pyo3 = { version = "0.23", features = ["auto-initialize"] }
 serde-pyobject = "0.5"
+
